@@ -1,24 +1,46 @@
 #include "Chip8.h"
+#include <cstdio>
 
-int main() {
-	std::string gamepath("/home/liam/Downloads/15PUZZLE");
-	Chip8 chip8(gamepath);
-	 // Set up render system and register input callbacks
-	//setupGraphics();
+Chip8 chip8;
+static void displayCallback();
+static void reshapeCallback(GLsizei w, GLsizei h);
+static void keyboardUpCallback(unsigned char key, int x, int y);
+static void keyboardDownCallback(unsigned char key, int x, int y);
+
+int main(int argc, char** argv) {
+	std::string gamepath("games/15PUZZLE");
+	chip8.loadGame(gamepath);
+	LOG("Loading %s", gamepath.c_str());
 	//setupInput();
-	int i = 0;
-	// Emulation loop
-	while(i<100) {
-		// Emulate one cycle
-		chip8.emulateCycle();
-		i++;
-		// If the draw flag is set, update the screen
-		//if(chip8.draw_flag)
-	  //	drawGraphics();
- 
-		// Store key press state (Press and Release)
-		//chip8.setKeys();
-  	}
- 
+	glutInit(&argc, argv);          
+	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA);
+
+	glutInitWindowSize(640, 320);
+    glutInitWindowPosition(320, 320);
+	glutCreateWindow(gamepath.c_str());
+	
+	glutDisplayFunc(displayCallback);
+	glutIdleFunc(displayCallback);
+    glutReshapeFunc(reshapeCallback);        
+	glutKeyboardFunc(keyboardDownCallback);
+	glutKeyboardUpFunc(keyboardUpCallback);
+
+	glutMainLoop();
 	return 0;
+}
+
+void displayCallback(){
+	chip8.emulateCycle();
+}
+
+void reshapeCallback(GLsizei w, GLsizei h){
+	chip8.reshapeWindow(w, h);
+}
+
+void keyboardUpCallback(unsigned char key, int x, int y){
+	chip8.keyboardUp(key, x, y);
+}
+
+void keyboardDownCallback(unsigned char key, int x, int y){
+	chip8.keyboardDown(key, x, y);
 }
