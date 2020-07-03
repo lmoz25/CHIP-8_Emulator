@@ -41,7 +41,7 @@ private:
     uint8_t delay_timer;
     uint8_t sound_timer;
     uint16_t index_register;
-    Key key;
+    Key key_handler;
     std::array<uint8_t, NUM_CPU_REGISTERS> cpu_registers;
     // C array makes using SDL easier
     uint8_t graphics_array[GRAPHICS_ARRAY_WIDTH*GRAPHICS_ARRAY_HEIGHT];

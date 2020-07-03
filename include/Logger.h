@@ -20,7 +20,8 @@ inline void LOG(const char* msg, ...){
     snprintf(buffer, 1000, format, dt, msg);
     vsnprintf(outmsg, 1000, buffer, vl);
     std::string filePath ="debug_log.txt";
-    std::ofstream ofs(filePath.c_str(), std::ios_base::out | std::ios_base::app );
+    std::ofstream ofs;
+    ofs.open(filePath.c_str(), std::ios_base::out | std::ios_base::app );
     ofs << outmsg;
     ofs.close();
 }

@@ -8,10 +8,13 @@ static void keyboardUpCallback(unsigned char key, int x, int y);
 static void keyboardDownCallback(unsigned char key, int x, int y);
 
 int main(int argc, char** argv) {
-	std::string gamepath("games/15PUZZLE");
+	if(argc == 1){
+		std::cerr << "Usage: chip.exe path/to/rom" << std::endl;
+		exit(1);
+	}
+	std::string gamepath(argv[1]);
 	chip8.loadGame(gamepath);
 	LOG("Loading %s", gamepath.c_str());
-	//setupInput();
 	glutInit(&argc, argv);          
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA);
 

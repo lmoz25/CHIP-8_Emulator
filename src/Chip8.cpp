@@ -32,6 +32,7 @@ uint8_t chip8_fontset[FONTSET_SIZE] =
   0xF0, 0x80, 0xF0, 0x80, 0x80  // F
 };
 
+uint8_t c = 0;
 Chip8::Chip8() {
     
     program_counter = 0x200;
@@ -43,6 +44,7 @@ Chip8::Chip8() {
     memory.fill(0);
     memset(&graphics_array, 0, GRAPHICS_ARRAY_HEIGHT*GRAPHICS_ARRAY_WIDTH*sizeof(uint8_t));
     stack.fill(0);
+    cpu_registers.fill(0);
 
     // Load fontset
     for(int i = 0; i < FONTSET_SIZE; ++i) {
@@ -52,6 +54,10 @@ Chip8::Chip8() {
     std::cout << "Setting up graphics" << std::endl;
     // Set up render system and register input callbacks
 	graphics = std::make_unique<Graphics>();
+    draw_flag = true;
+
+    std::cout << "Setting up keyboard" << std::endl;
+
 }
 
 Chip8::~Chip8(){}
@@ -78,18 +84,16 @@ void Chip8::emulateCycle() {
     updateTimers();
     if(draw_flag){
         glClear(GL_COLOR_BUFFER_BIT);
+        graphics->draw(graphics_array);
+        glutSwapBuffers();
+        draw_flag = false;
     }
-
-    graphics->draw(graphics_array);
-    glutSwapBuffers();
-    draw_flag = false;
 }
 
 void Chip8::processCurrentOpcode() {
     opcode = memory[program_counter] << 8 | memory[program_counter+1];
-  //  std::cout << std::hex << opcode << std::endl;
+    //LOG("0x%x", opcode);
     bool skip_next_instruction = false;
-    draw_flag = false;
     // VF, the cpu register used to flag something
     uint8_t* flag_register = &cpu_registers[NUM_CPU_REGISTERS-1];
     switch(opcode & 0xF000) {
@@ -243,43 +247,49 @@ void Chip8::processCurrentOpcode() {
             break;
 
         case 0xD000: {
-            bool collision = false;
-            int Vx = (opcode & 0x0F00) >> 8;
-            int Vy = (opcode & 0x00F0) >> 4;
-           // LOG("Drawing at (%d,%d)", Vx, Vy);
+            *flag_register = 0;
+            int Vx = cpu_registers[(opcode & 0x0F00) >> 8];
+            int Vy = cpu_registers[(opcode & 0x00F0) >> 4];
+            //LOG("Drawing at (%d,%d)", Vx, Vy);
             int height = opcode & 0x000F;
-            LOG("Height %d", height);
             for (int i = 0; i < height; i++) {
-               // uint8_t row = memory[index_register + i];
+                // The row in memory the sprite is at
+                uint8_t row = memory[index_register + i];
                 for (int j = 0; j < 8; j++) {
-                    uint8_t* pixel = &graphics_array[(j+Vx) + GRAPHICS_ARRAY_WIDTH*(i+Vy)];
-                    if(*pixel == 1) {
-                        collision = true;
+                    // 0x80 is 11111111, so this scans row bit by bit to decide to write or not
+                    if(row & (0x80 >> j)){
+                        uint8_t* pixel = &graphics_array[(j+Vx) + GRAPHICS_ARRAY_WIDTH*(i+Vy)];
+                        if(*pixel == 1) {
+                            *flag_register = 1;
+                        }
+                        *pixel ^= 1;
                     }
-                    *pixel ^= 1;
-                   // LOG("Pixel (%d,%d) is %d", (j+Vx), (i+Vy), *pixel);
                 }
             }
-            *flag_register = collision ? 1 : 0;
             draw_flag = true;
             break;
         }
 
         case 0xE000: {
+           // uint8_t thing = ((opcode & 0x0F00) >> 8);
+            // LOG("%x", thing);
+            // LOG("%u", cpu_registers[(opcode & 0x0F00) >> 8]);
+           // std::cout << thing << std::endl;
             switch (opcode & 0x00FF)
             {
             case 0x009E:
-                skip_next_instruction = key.isPressed(cpu_registers[(opcode & 0x0F00) >> 8]);
+                skip_next_instruction = key_handler.isPressed(cpu_registers[(opcode & 0x0F00) >> 8]);
                 break;
 
             case 0x00A1:
-                skip_next_instruction = !key.isPressed(cpu_registers[(opcode & 0x0F00) >> 8]);
+                skip_next_instruction = !key_handler.isPressed(cpu_registers[(opcode & 0x0F00) >> 8]);
                 break;
             
             default:
                 // TODO throw
                 break;
             }
+            break;
         }
 
         case 0xF000: {
@@ -292,7 +302,7 @@ void Chip8::processCurrentOpcode() {
                 break;
             
             case 0x000A:
-                *Vx = key.waitForKeyPress();
+                *Vx = key_handler.waitForKeyPress();
                 break;
 
             case 0x0015:
@@ -305,8 +315,8 @@ void Chip8::processCurrentOpcode() {
 
             case 0x001E: {
                 index_register += *Vx;
-                if(index_register > MEMORY_POOL_SIZE){
-                    index_register-=MEMORY_POOL_SIZE;
+                if(index_register >= MEMORY_POOL_SIZE){
+                //    index_register-=MEMORY_POOL_SIZE;
                     *flag_register = 1;
                 }
                 else{
@@ -340,6 +350,7 @@ void Chip8::processCurrentOpcode() {
                 //TODO : Throw
                 break;
             }
+            break;
         }
         default:
             //TODO THrow
@@ -347,7 +358,7 @@ void Chip8::processCurrentOpcode() {
     }
 
     program_counter += skip_next_instruction ? 4 : 2;
-    if(program_counter > MEMORY_POOL_SIZE){
+    if(program_counter >= MEMORY_POOL_SIZE){
         program_counter -= MEMORY_POOL_SIZE;
     }
 }
@@ -357,7 +368,7 @@ uint16_t Chip8::getCharLocation(uint8_t character) {
         //Throw
     }
 
-    return memory[character];
+    return cpu_registers[character] * 5;
 }
 
 void Chip8::updateTimers(){
@@ -377,5 +388,10 @@ void Chip8::reshapeWindow(GLsizei w, GLsizei h){
     graphics->reshapeWindow(w,h);
 }
 
-void Chip8::keyboardDown(unsigned char key, int x, int y){}
-void Chip8::keyboardUp(unsigned char key, int x, int y){}
+void Chip8::keyboardDown(unsigned char key, int x, int y){
+    LOG("%c", key);
+    key_handler.keyboardDown(key);
+}
+void Chip8::keyboardUp(unsigned char key, int x, int y){
+    key_handler.keyboardUp(key);
+}
